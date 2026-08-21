@@ -69,6 +69,16 @@ class PetException(GameException):
         super().__init__(code=1007, message=message)
 
 
+class SocialException(GameException):
+    def __init__(self, message: str = "组队/社交操作失败"):
+        super().__init__(code=1008, message=message)
+
+
+class EconomyException(GameException):
+    def __init__(self, message: str = "经济操作失败"):
+        super().__init__(code=1009, message=message)
+
+
 class BannedException(GameException):
     def __init__(self, message: str = "账号已被封禁"):
         super().__init__(code=403, message=message, status_code=status.HTTP_403_FORBIDDEN)

@@ -5,8 +5,7 @@ import asyncio
 from typing import Dict, Set
 import time
 
-from .database import get_session
-from .deps import get_db
+from .database import get_db
 from .models.user import User
 from .models.character import Character
 from .redis_client import redis_client
@@ -61,7 +60,7 @@ async def websocket_endpoint(
     token: str = Query(...),
     char_id: int = Query(...),
 ):
-    db_gen = get_session()
+    db_gen = get_db()
     db = await db_gen.__anext__()
     try:
         from jose import jwt

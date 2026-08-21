@@ -3,8 +3,8 @@ from sqlalchemy import select, and_
 from typing import List, Optional, Dict, Any
 import random
 
-from ..models.economy import ShopConfig, ShopItem, MarketListing, Transaction
-from ..models.item import ItemConfig
+from ..models.economy import MarketListing, Transaction
+from ..models.item import ItemConfig, ShopConfig, ShopItem
 from ..models.character import Character
 from ..game.enums import MarketStatus
 from ..utils.id_gen import generate_id
