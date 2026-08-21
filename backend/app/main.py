@@ -5,9 +5,8 @@ from contextlib import asynccontextmanager
 import time
 
 from .config import settings
-from .database import init_db, engine
 from .redis_client import init_redis, close_redis
-from .exceptions import GameException, AuthException, RateLimitException, ForbiddenException
+from .exceptions import GameException, AuthException, RateLimitException, PermissionDeniedException
 from .routers import auth, character, map, item, battle, quest, social, guild, economy
 from .ws import router as ws_router
 
@@ -48,8 +47,8 @@ async def auth_exception_handler(request: Request, exc: AuthException):
     return JSONResponse(status_code=401, content={"success": False, "msg": str(exc), "code": 401})
 
 
-@app.exception_handler(ForbiddenException)
-async def forbidden_exception_handler(request: Request, exc: ForbiddenException):
+@app.exception_handler(PermissionDeniedException)
+async def forbidden_exception_handler(request: Request, exc: PermissionDeniedException):
     return JSONResponse(status_code=403, content={"success": False, "msg": str(exc), "code": 403})
 
 

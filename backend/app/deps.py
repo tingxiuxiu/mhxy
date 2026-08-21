@@ -6,21 +6,16 @@ from typing import Optional
 import time
 
 from .config import settings
-from .database import get_session
+from .database import get_db
 from .redis_client import redis_client
 from .models.user import User
 from .models.character import Character
 from .utils.crypto import verify_request_signature
-from .exceptions import AuthException, RateLimitException, ForbiddenException, RateLimitExceeded
+from .exceptions import AuthException, RateLimitException, BannedException
 from sqlalchemy import select
 
 
 security = HTTPBearer(auto_error=False)
-
-
-async def get_db() -> AsyncSession:
-    async for session in get_session():
-        yield session
 
 
 async def get_current_user(
@@ -46,7 +41,7 @@ async def get_current_user(
         raise AuthException("用户不存在或已禁用")
     ban = await redis_client.get(f"wx:ban:user:{user_id}")
     if ban:
-        raise ForbiddenException(f"账号被封禁：{ban.decode() if isinstance(ban, bytes) else ban}")
+        raise BannedException(f"账号被封禁：{ban.decode() if isinstance(ban, bytes) else ban}")
     return user
 
 
