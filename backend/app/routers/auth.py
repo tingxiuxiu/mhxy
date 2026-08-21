@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..deps import get_db, get_current_user, rate_limit
+from ..deps import get_db, get_current_user, rate_limit, security
 from ..services.user_service import user_service
+from ..schemas.user import RegisterRequest, LoginRequest
 from ..models.user import User
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
@@ -27,7 +29,7 @@ class RefreshReq(BaseModel):
 @router.post("/register")
 async def register(req: RegisterReq, db: AsyncSession = Depends(get_db)):
     try:
-        user = await user_service.register(db, req.username, req.password, req.email)
+        user = await user_service.register(db, RegisterRequest(username=req.username, password=req.password))
         return {"success": True, "user_id": user.id}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -36,7 +38,7 @@ async def register(req: RegisterReq, db: AsyncSession = Depends(get_db)):
 @router.post("/login")
 async def login(req: LoginReq, db: AsyncSession = Depends(get_db)):
     try:
-        token_data = await user_service.login(db, req.username, req.password)
+        token_data = await user_service.login(db, LoginRequest(username=req.username, password=req.password))
         return token_data
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
@@ -45,14 +47,18 @@ async def login(req: LoginReq, db: AsyncSession = Depends(get_db)):
 @router.post("/refresh")
 async def refresh(req: RefreshReq, db: AsyncSession = Depends(get_db)):
     try:
-        return await user_service.refresh_token(db, req.refresh_token)
+        return await user_service.refresh_token(req.refresh_token)
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
 
 
 @router.post("/logout")
-async def logout(user: User = Depends(get_current_user), _=Depends(rate_limit)):
-    await user_service.logout(user.id)
+async def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    user: User = Depends(get_current_user),
+    _=Depends(rate_limit),
+):
+    await user_service.logout(credentials.credentials)
     return {"success": True}
 
 

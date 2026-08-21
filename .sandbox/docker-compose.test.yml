@@ -1,0 +1,62 @@
+# 沙箱环境的真实测试 compose（受限于沙箱无 CAP_NET_ADMIN/只读 cgroup，
+# 所有服务使用 host 网络模式共享 docker daemon 的网络命名空间，
+# 后端依赖通过挂载宿主 .venv 的 site-packages 提供，经 unix socket 对外提供 HTTP）。
+name: mhxy-test
+
+x-backend-common: &backend-common
+  image: python:3.14-slim
+  network_mode: host
+  working_dir: /app
+  volumes:
+    - /workspace/backend:/app
+    - /workspace/.sandbox/shared:/shared
+  environment: &backend-env
+    DATABASE_URL: postgresql+asyncpg://mhxy:mhxy123@127.0.0.1:5432/mhxy
+    REDIS_URL: redis://127.0.0.1:6379/0
+    SECRET_KEY: dev-secret-key
+    REQUEST_SIGN_SECRET: dev-request-sign-secret
+    HASHIDS_SALT: dev-hashids-salt
+    PYTHONPATH: /app/.venv/lib/python3.14/site-packages
+
+services:
+  db:
+    image: postgres:16-alpine
+    network_mode: host
+    environment:
+      POSTGRES_USER: mhxy
+      POSTGRES_PASSWORD: mhxy123
+      POSTGRES_DB: mhxy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mhxy -d mhxy -h 127.0.0.1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    network_mode: host
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  init-db:
+    <<: *backend-common
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python init_db.py
+
+  backend:
+    <<: *backend-common
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      init-db:
+        condition: service_completed_successfully
+    command: python -m uvicorn app.main:app --uds /shared/app.sock --workers 1

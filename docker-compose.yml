@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mhxy
+      POSTGRES_PASSWORD: mhxy123
+      POSTGRES_DB: mhxy
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mhxy -d mhxy"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  init-db:
+    build: ./backend
+    environment: &backend_env
+      DATABASE_URL: postgresql+asyncpg://mhxy:mhxy123@db:5432/mhxy
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key
+      REQUEST_SIGN_SECRET: dev-request-sign-secret
+      HASHIDS_SALT: dev-hashids-salt
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python init_db.py
+
+  backend:
+    build: ./backend
+    environment: *backend_env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      init-db:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

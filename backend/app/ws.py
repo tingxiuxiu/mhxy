@@ -66,7 +66,7 @@ async def websocket_endpoint(
         from jose import jwt
         from .config import settings
         try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
             user_id = int(payload.get("sub"))
         except Exception:
             await websocket.close(code=4001)

@@ -63,8 +63,10 @@ async def seed_data():
                        effect={}, description="可快速传送"),
             ItemConfig(id=10, name="青铜剑", type=1, subtype=1, stackable=False, max_stack=1, sell_price=500, buy_price=1000,
                        effect={"damage": 20}, level_req=1, description="初级武器"),
-            ItemConfig(id=11, name="布衣", type=1, subtype=4, stackable=False, max_stack=1, sell_price=300, buy_price=600,
+            ItemConfig(id=11, name="布衣", type=1, subtype=3, stackable=False, max_stack=1, sell_price=300, buy_price=600,
                        effect={"defense": 10}, level_req=1, description="初级衣服"),
+            ItemConfig(id=12, name="布帽", type=1, subtype=2, stackable=False, max_stack=1, sell_price=250, buy_price=500,
+                       effect={"defense": 5}, level_req=1, description="初级帽子"),
             ItemConfig(id=20, name="藏宝图", type=4, subtype=2, stackable=True, max_stack=99, sell_price=1000, buy_price=2000,
                        effect={}, description="可能挖出宝贝"),
         ]

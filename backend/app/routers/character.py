@@ -7,6 +7,7 @@ from ..deps import get_db, get_current_user, get_current_char
 from ..models.user import User
 from ..models.character import Character
 from ..services.character_service import character_service
+from ..game.formulas import calc_exp_for_level
 from ..exceptions import GameException
 
 router = APIRouter(prefix="/api/character", tags=["角色"])
@@ -28,7 +29,7 @@ class AllocatePointReq(BaseModel):
 @router.post("/create")
 async def create_char(req: CreateCharReq, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     try:
-        char = await character_service.create_character(db, user.id, req.name, req.job)
+        char = await character_service.create_character(db, user, req.name, gender=1, faction=req.job)
         await db.commit()
         return {"char_id": char.id, "name": char.name}
     except Exception as e:
@@ -38,7 +39,7 @@ async def create_char(req: CreateCharReq, db: AsyncSession = Depends(get_db), us
 
 @router.get("/list")
 async def list_chars(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
-    chars = await character_service.get_user_characters(db, user.id)
+    chars = await character_service.get_user_characters(db, user)
     return [{"id": c.id, "name": c.name, "level": c.level, "job": c.job, "map_id": c.map_id} for c in chars]
 
 
@@ -50,7 +51,7 @@ async def get_info(db: AsyncSession = Depends(get_db), char: Character = Depends
     bonus = await item_service.get_item_bonus(db, char)
     return {
         "id": char.id, "name": char.name, "level": char.level, "job": char.job,
-        "exp": char.exp, "next_exp": character_service.calc_next_exp(char.level),
+        "exp": char.exp, "next_exp": calc_exp_for_level(char.level),
         "hp": char.hp, "mp": char.mp, "cash": char.cash, "reserve_cash": char.reserve_cash,
         "hp_max": stats["hp_max"] + bonus.get("hp", 0),
         "mp_max": stats["mp_max"] + bonus.get("mp", 0),
