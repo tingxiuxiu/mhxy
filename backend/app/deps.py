@@ -13,6 +13,7 @@ from .models.character import Character
 from .utils.crypto import verify_request_signature
 from .exceptions import AuthException, RateLimitException, BannedException
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 
 security = HTTPBearer(auto_error=False)
@@ -25,14 +26,15 @@ async def get_current_user(
     if not credentials:
         raise AuthException("未提供认证凭证")
     token = credentials.credentials
-    if await redis_client.sismember(settings.JWT_BLACKLIST_KEY, token):
-        raise AuthException("token已失效")
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         user_id: int = int(payload.get("sub"))
         exp = payload.get("exp")
         if exp is None or exp < time.time():
             raise AuthException("token已过期")
+        jti = payload.get("jti")
+        if jti and await redis_client.exists(f"wx:jwt:blacklist:{jti}"):
+            raise AuthException("token已失效")
     except JWTError:
         raise AuthException("无效的token")
     result = await db.execute(select(User).where(User.id == user_id))
@@ -53,7 +55,9 @@ async def get_current_char(
     if not char_id:
         raise AuthException("请选择角色（X-Char-ID）")
     result = await db.execute(
-        select(Character).where(Character.id == char_id, Character.user_id == user.id, Character.is_deleted == False)
+        select(Character)
+        .options(selectinload(Character.stats))
+        .where(Character.id == char_id, Character.user_id == user.id, Character.is_deleted == False)
     )
     char = result.scalar_one_or_none()
     if not char:
@@ -105,7 +109,7 @@ async def get_current_char_ws(
         if await redis_client.sismember(settings.JWT_BLACKLIST_KEY, token):
             await websocket.close(code=4001)
             return None, None
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         user_id = int(payload.get("sub"))
     except Exception:
         await websocket.close(code=4001)

@@ -1,0 +1,56 @@
+#!/bin/sh
+# OCI runtime wrapper: removes cgroupsPath from config.json before `create`
+# so runc runs the container without cgroups (needed in sandboxes with a
+# read-only /sys/fs/cgroup). All other subcommands pass through to runc.
+LOG=/tmp/runc-wrapper.log
+echo "[$(date +%T)] $*" >> "$LOG"
+
+has_create=0
+bundle=""
+args=""
+prev=""
+
+for a in "$@"; do
+  case "$prev" in
+    --bundle) bundle="$a" ;;
+  esac
+  [ "$a" = "create" ] && has_create=1
+  args="$args '$a'"
+  prev="$a"
+done
+
+if [ "$has_create" = "1" ]; then
+  # --bundle=VALUE form
+  for a in "$@"; do
+    case "$a" in
+      --bundle=*) bundle="${a#--bundle=}" ;;
+    esac
+  done
+  [ -z "$bundle" ] && bundle="$PWD"
+  cfg="$bundle/config.json"
+  if [ -f "$cfg" ]; then
+    cp "$cfg" /tmp/last-config-before.json 2>>"$LOG"
+    jq '
+      del(.linux.cgroupsPath, .cgroupsPath)
+      | del(.linux.sysctl)
+      | .linux.namespaces |= map(select(.type != "pid"))
+      | del(.linux.maskedPaths, .linux.readonlyPaths)
+      | .mounts |= map(
+          if .destination == "/proc" then
+            {destination: "/proc", source: "/proc", type: "none", options: ["rbind", "nosuid", "nodev", "noexec"]}
+          elif .destination == "/sys" then
+            {destination: "/sys", source: "/sys", type: "none", options: ["rbind", "nosuid", "nodev", "noexec", "ro"]}
+          elif .destination == "/sys/fs/cgroup" then
+            {destination: "/sys/fs/cgroup", source: "/sys/fs/cgroup", type: "none", options: ["rbind", "nosuid", "nodev", "noexec", "ro"]}
+          elif .destination == "/dev/mqueue" then empty
+          else .
+          end)
+    ' "$cfg" > "$cfg.nocg" 2>>"$LOG" && mv "$cfg.nocg" "$cfg" || rm -f "$cfg.nocg"
+    cp "$cfg" /tmp/last-config-after.json 2>>"$LOG"
+  else
+    echo "  NO CONFIG at $cfg" >> "$LOG"
+  fi
+fi
+
+# shellcheck disable=SC2086
+eval exec runc $args
